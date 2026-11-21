@@ -3884,8 +3884,8 @@ if(!data.profiles['cotw-laocorn'])data.profiles['cotw-laocorn']=freshLaocornData
  const removeIds=new Set(['laocorn-dark-aura-rev','laocorn-metal-aura-rev']);
  profile.moves=profile.moves.filter(m=>m&&!removeIds.has(m.id)&&!(m.cat==='REVアーツ'&&(['ダークオーラボール（REV）','ゴーダマスオーラボール（REV・メタル時）'].includes(m.name))));
  const corrections={
-  'laocorn-metal-blow':'弱・REV版ゴーダマスフィスト中 4 または 6+LP+LK → 弱・REV版ゴーダマスフィスト中 4 または 6+LP',
-  'laocorn-metal-rising':'強・REV版ゴーダマスフィスト中 4 または 6+LP+HP → 強・REV版ゴーダマスフィスト中 4 または 6+HP'
+  'laocorn-metal-blow':'弱・REV版ゴーダマスフィスト中 4 または 6+LP',
+  'laocorn-metal-rising':'強・REV版ゴーダマスフィスト中 4 または 6+HP'
  };
  for(const move of profile.moves){if(move&&corrections[move.id])move.cmd=corrections[move.id];}
  const additions=[
