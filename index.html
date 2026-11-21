@@ -3931,6 +3931,74 @@ else if(!Array.isArray(data.profiles['cotw-hotaru'].moves)||data.profiles['cotw-
 if(!data.profiles['cotw-preecha'])data.profiles['cotw-preecha']=freshPreechaData();
 else if(!Array.isArray(data.profiles['cotw-preecha'].moves)||data.profiles['cotw-preecha'].moves.length===0){data.profiles['cotw-preecha'].moves=PREECHA_INITIAL_MOVES.map(m=>({...m}));if(!Array.isArray(data.profiles['cotw-preecha'].combos))data.profiles['cotw-preecha'].combos=[];}
 ensureCharacterProfiles();
+// Phase 38: CotW normal-attack completeness migration.
+// Existing move IDs are retained wherever possible so saved combo references survive.
+// User-edited commands/names/notes are never overwritten by this migration.
+(function migrateCotwNormalAttacksPhase38(){
+ const buttons=[
+  ['5lp','立ち弱P','立ち弱パンチ','立ち弱P（近／遠）','LP','A'],
+  ['5lk','立ち弱K','立ち弱キック','立ち弱K（近／遠）','LK','B'],
+  ['5hp','立ち強P','立ち強パンチ','立ち強P（近／遠）','HP','C'],
+  ['5hk','立ち強K','立ち強キック','立ち強K（近／遠）','HK','D']
+ ];
+ const splitProfiles=[
+  ['cotw-rick',id=>`rick-n-${id}`, 'rick-normal'],
+  ['cotw-rock',id=>`rock-n-${id}`, 'rock-normal'],
+  ['cotw-joe',id=>`joe-${id}`, 'joe-normal'],
+  ['cotw-mr-big',id=>`mrbig-${id}`, 'mrbig-normal'],
+  ['cotw-kim-jae-hoon',id=>`jaehoon-00${({'5lp':3,'5lk':4,'5hp':5,'5hk':6})[id]}`, 'jaehoon-normal'],
+  ['cotw-duck',id=>`duck-normal-${({'5lp':'5a','5lk':'5b','5hp':'5c','5hk':'5d'})[id]}`, 'duck-normal'],
+  ['cotw-mr-karate',id=>`mk-normal-${({'5lp':'5a','5lk':'5b','5hp':'5c','5hk':'5d'})[id]}`, 'mk-normal']
+ ];
+ for(const [profileId,legacyIdFor,slug] of splitProfiles){
+  const profile=data.profiles[profileId]; if(!profile||!Array.isArray(profile.moves))continue;
+  for(const [cmdKey,shortName,legacyFullName,legacyKarateName,button,karateButton] of buttons){
+   const legacyId=legacyIdFor(cmdKey);
+   const old=profile.moves.find(m=>m&&m.id===legacyId);
+   const expectedNames=profileId==='cotw-mr-karate'?[legacyKarateName]:[legacyFullName,shortName];
+   const command=profileId==='cotw-mr-karate'?`5${karateButton}`:`5${button}`;
+   const expectedCmd=command;
+   const nearId=profileId==='cotw-mr-karate'?`${slug}-near-${cmdKey}`:`${slug}-near-${cmdKey}`;
+   const farId=`${slug}-far-${cmdKey}`;
+   const nearName=`近距離${shortName}`;
+   const farName=`遠距離${shortName}`;
+   if(old && expectedNames.includes(old.name) && old.cmd===expectedCmd && old.cat==='通常技'){
+    // Keep the original ID and user note so any saved combo continues to resolve.
+    old.name=nearName; old.cmd=`近距離 ${command}`;
+   }else if(!(old && old.name===nearName && old.cmd===`近距離 ${command}`) && !profile.moves.some(m=>m&&m.id===nearId)){
+    // Preserve customized legacy entries; create a new canonical near entry instead.
+    profile.moves.push({id:nearId,name:nearName,cmd:`近距離 ${command}`,cat:'通常技'});
+   }
+   if(!profile.moves.some(m=>m&&m.id===farId))profile.moves.push({id:farId,name:farName,cmd:`遠距離 ${command}`,cat:'通常技'});
+  }
+ }
+ const standardNormals=(prefix,metal=false)=>{
+  const rows=[];
+  for(const [key,label,button] of [['5lp','弱P','5LP'],['5lk','弱K','5LK'],['5hp','強P','5HP'],['5hk','強K','5HK']]){
+   if(!metal){rows.push({id:`${prefix}-near-${key}`,name:`近距離立ち${label}`,cmd:`近距離 ${button}`,cat:'通常技'},{id:`${prefix}-far-${key}`,name:`遠距離立ち${label}`,cmd:`遠距離 ${button}`,cat:'通常技'});}
+   else rows.push({id:`${prefix}-${key}`,name:`メタル時・立ち${label}`,cmd:button,cat:'通常技',note:'メタルラオコーン時専用。立ち通常技は近距離／遠距離の区別なし。'});
+  }
+  for(const [key,label,button] of [['2lp','しゃがみ弱P','2LP'],['2lk','しゃがみ弱K','2LK'],['2hp','しゃがみ強P','2HP'],['2hk','しゃがみ強K','2HK'],['jlp','ジャンプ弱P','j.LP'],['jlk','ジャンプ弱K','j.LK'],['jhp','ジャンプ強P','j.HP'],['jhk','ジャンプ強K','j.HK']])rows.push({id:`${prefix}-${key}`,name:metal?`メタル時・${label}`:label,cmd:button,cat:'通常技',...(metal?{note:'メタルラオコーン時専用。'}:{})});
+  return rows;
+ };
+ const additions={
+  'cotw-nightmare-geese':standardNormals('nightmare-geese-normal'),
+  'cotw-blue-mary':standardNormals('blue-mary-normal'),
+  'cotw-krauser':standardNormals('krauser-normal'),
+  'cotw-laocorn':standardNormals('laocorn-metal-normal',true)
+ };
+ for(const [profileId,rows] of Object.entries(additions)){
+  const profile=data.profiles[profileId]; if(!profile||!Array.isArray(profile.moves))continue;
+  for(const move of rows)if(!profile.moves.some(m=>m&&m.id===move.id))profile.moves.push({...move});
+ }
+ // Correct legacy throw entries that were mistakenly grouped under 通常技.
+ for(const character of CHARACTER_CATALOG.cotw){
+  const profile=data.profiles[character.id]; if(!profile||!Array.isArray(profile.moves))continue;
+  for(const move of profile.moves){
+   if(move&&move.cat==='通常技'&&/投げ/.test(String(move.name||'')))move.cat='通常投げ';
+  }
+ }
+})();
 // CotW shared-system migration: append only missing common actions without touching user moves/combos.
 (function migrateCotwSharedSystems(){
  const shared=[
@@ -4125,114 +4193,38 @@ const savedProfileId=(data.activeProfileId && characterForProfile(data.activePro
 let activeProfileId=savedProfileId;
 let activeData=data.profiles[activeProfileId]||data.profiles[PROFILE_ANGEL];
 // Normalize shared-system rows without touching saved combo recipes or user notes.
-// Phase 37: repair missing CotW normal attacks and normalize standing close/far entries.
-(function repairCotwNormalAttacks(){
- const splitDistanceProfiles=new Set(['cotw-rick','cotw-rock','cotw-joe','cotw-mr-big','cotw-kim-jae-hoon','cotw-duck']);
- const missingNormalSeeds={
-  'cotw-nightmare-geese':[
-   ['near-5lp','近立ち弱パンチ','近距離 5LP'],['far-5lp','遠立ち弱パンチ','遠距離 5LP'],
-   ['near-5lk','近立ち弱キック','近距離 5LK'],['far-5lk','遠立ち弱キック','遠距離 5LK'],
-   ['near-5hp','近立ち強パンチ','近距離 5HP'],['far-5hp','遠立ち強パンチ','遠距離 5HP'],
-   ['near-5hk','近立ち強キック','近距離 5HK'],['far-5hk','遠立ち強キック','遠距離 5HK'],
-   ['2lp','しゃがみ弱パンチ','2LP'],['2lk','しゃがみ弱キック','2LK'],['2hp','しゃがみ強パンチ','2HP'],['2hk','しゃがみ強キック','2HK'],
-   ['jlp','ジャンプ弱パンチ','j.LP'],['jlk','ジャンプ弱キック','j.LK'],['jhp','ジャンプ強パンチ','j.HP'],['jhk','ジャンプ強キック','j.HK']
-  ],
-  'cotw-blue-mary':[
-   ['near-5lp','近立ち弱パンチ','近距離 5LP'],['far-5lp','遠立ち弱パンチ','遠距離 5LP'],
-   ['near-5lk','近立ち弱キック','近距離 5LK'],['far-5lk','遠立ち弱キック','遠距離 5LK'],
-   ['near-5hp','近立ち強パンチ','近距離 5HP'],['far-5hp','遠立ち強パンチ','遠距離 5HP'],
-   ['near-5hk','近立ち強キック','近距離 5HK'],['far-5hk','遠立ち強キック','遠距離 5HK'],
-   ['2lp','しゃがみ弱パンチ','2LP'],['2lk','しゃがみ弱キック','2LK'],['2hp','しゃがみ強パンチ','2HP'],['2hk','しゃがみ強キック','2HK'],
-   ['jlp','ジャンプ弱パンチ','j.LP'],['jlk','ジャンプ弱キック','j.LK'],['jhp','ジャンプ強パンチ','j.HP'],['jhk','ジャンプ強キック','j.HK']
-  ],
-  'cotw-krauser':[
-   ['near-5lp','近立ち弱パンチ','近距離 5LP'],['far-5lp','遠立ち弱パンチ','遠距離 5LP'],
-   ['near-5lk','近立ち弱キック','近距離 5LK'],['far-5lk','遠立ち弱キック','遠距離 5LK'],
-   ['near-5hp','近立ち強パンチ','近距離 5HP'],['far-5hp','遠立ち強パンチ','遠距離 5HP'],
-   ['near-5hk','近立ち強キック','近距離 5HK'],['far-5hk','遠立ち強キック','遠距離 5HK'],
-   ['2lp','しゃがみ弱パンチ','2LP'],['2lk','しゃがみ弱キック','2LK'],['2hp','しゃがみ強パンチ','2HP'],['2hk','しゃがみ強キック','2HK'],
-   ['jlp','ジャンプ弱パンチ','j.LP'],['jlk','ジャンプ弱キック','j.LK'],['jhp','ジャンプ強パンチ','j.HP'],['jhk','ジャンプ強キック','j.HK']
-  ]
- };
- const standing={
-  '5LP':['近立ち弱パンチ','遠立ち弱パンチ'],
-  '5LK':['近立ち弱キック','遠立ち弱キック'],
-  '5HP':['近立ち強パンチ','遠立ち強パンチ'],
-  '5HK':['近立ち強キック','遠立ち強キック']
- };
- Object.entries(data.profiles||{}).forEach(([profileId,profile])=>{
-  if(!profile||!Array.isArray(profile.moves)||!profileId.startsWith('cotw-'))return;
-  const moves=profile.moves;
-  const seed=moves.some(m=>m&&m.cat==='通常技')?[]:(missingNormalSeeds[profileId]||[]);
-  seed.forEach(([suffix,name,cmd])=>{
-   const id=profileId+'-normal-'+suffix;
-   if(!moves.some(m=>m&&m.id===id))moves.push({id,name,cmd,cat:'通常技'});
-  });
-  if(!splitDistanceProfiles.has(profileId))return;
-  Object.entries(standing).forEach(([cmd,names])=>{
-   const rows=moves.filter(m=>m&&m.cat==='通常技'&&String(m.cmd||'').trim()===cmd);
-   if(!rows.length)return;
-   const nearName=names[0],farName=names[1];
-   let near=rows.find(m=>String(m.name||'').includes('近'))||rows[0];
-   near.name=nearName; near.cmd='近距離 '+cmd;
-   let far=rows.find(m=>String(m.name||'').includes('遠')||String(m.cmd||'').includes('遠距離'));
-   if(!far){
-    const id=String(near.id||profileId+'-'+cmd.toLowerCase())+'-far';
-    far={...near,id,name:farName,cmd:'遠距離 '+cmd};
-    moves.push(far);
-   }else{far.name=farName;far.cmd='遠距離 '+cmd;}
-  });
- });
-})();
-
-function normalizeCotwSharedRows(){
+(function normalizeCotwSharedRows(){
  const ready=(CHARACTER_CATALOG.cotw||[]).filter(c=>c.ready);
- const specs=[
-  {id:'cotw-system-step',name:'ステップ/ダッシュ',cmd:'地上で 66 または 6+REV',note:'キャラクターによってステップまたはダッシュが発動。REVボタンを押しながら前方向を入力しても使用可能'},
-  {id:'cotw-system-backstep',name:'バックステップ',cmd:'地上で 44 または 4+REV'},
-  {id:'cotw-system-normal-jump',name:'ノーマルジャンプ',cmd:'7／8／9'},
-  {id:'cotw-system-small-jump',name:'小ジャンプ',cmd:'7／8／9を素早く入力'},
-  {id:'cotw-system-dash-jump',name:'ダッシュジャンプ',cmd:'ステップ／ダッシュ中に 9（↗）'},
-  {id:'cotw-system-throw-forward',name:'前方投げ',cmd:'相手の近くで 6+LP+LK'},
-  {id:'cotw-system-throw-backward',name:'後方投げ',cmd:'相手の近くで 4+LP+LK'}
- ];
+ const specs={
+  step:{id:'cotw-system-step',name:'ステップ/ダッシュ',cmd:'地上で 66 または 6+REV',note:'キャラクターによってステップまたはダッシュが発動。REVボタンを押しながら前方向を入力しても使用可能'},
+  backstep:{id:'cotw-system-backstep',name:'バックステップ',cmd:'地上で 44 または 4+REV'},
+  normal:{id:'cotw-system-normal-jump',name:'ノーマルジャンプ',cmd:'7／8／9'},
+  small:{id:'cotw-system-small-jump',name:'小ジャンプ',cmd:'7／8／9を素早く入力'},
+  dash:{id:'cotw-system-dash-jump',name:'ダッシュジャンプ',cmd:'ステップ／ダッシュ中に 9（↗）'},
+  front:{id:'cotw-system-throw-forward',name:'前方投げ',cmd:'相手の近くで 6+LP+LK'},
+  back:{id:'cotw-system-throw-backward',name:'後方投げ',cmd:'相手の近くで 4+LP+LK'}
+ };
  for(const c of ready){
   const profile=data.profiles[c.id]; if(!profile||!Array.isArray(profile.moves))continue;
   const moves=profile.moves;
-  // These two mechanics are KOF XV system actions, not CotW common-system entries.
-  if(c.id==='cotw-ronaldo'){
-   for(let i=moves.length-1;i>=0;i--){const m=moves[i];if(m&&m.cat==='共通システム'&&(/シャッターストライク|アドバンスストライク/.test(m.name||'')||/ronaldo-system-(shatter|advance)/.test(m.id||'')))moves.splice(i,1);}
+  // Merge legacy per-character step entries into one canonical row; keep the most useful existing command/note.
+  const stepRows=moves.filter(m=>m&&m.cat==='共通システム'&&(m.id==='cotw-system-step'||m.name==='ステップ'||m.name==='ステップ/ダッシュ'));
+  if(stepRows.length){const keep=stepRows.find(m=>m.id==='cotw-system-step')||stepRows[0];keep.id='cotw-system-step';keep.name='ステップ/ダッシュ';keep.cat='共通システム';for(const duplicate of stepRows){if(duplicate!==keep){if(!keep.note&&duplicate.note)keep.note=duplicate.note;const ix=moves.indexOf(duplicate);if(ix>=0)moves.splice(ix,1);}}}
+  else moves.push({...specs.step});
+  for(const [key,spec] of Object.entries(specs)){
+   if(key==='step')continue;
+   const matches=moves.filter(m=>m&&m.cat==='共通システム'&&(m.id===spec.id||m.name===spec.name));
+   if(!matches.length)moves.push({...spec,id:spec.id});
+   else {const keep=matches[0];keep.id=spec.id;keep.name=spec.name;keep.cat='共通システム';for(const dup of matches.slice(1)){const ix=moves.indexOf(dup);if(ix>=0)moves.splice(ix,1);}}
   }
-  const oldShared=moves.filter(m=>m&&m.cat==='共通システム');
-  const firstIndex=moves.findIndex(m=>m&&m.cat==='共通システム');
-  const insertionIndex=firstIndex<0?moves.length:moves.slice(0,firstIndex).filter(m=>m&&m.cat!=='共通システム').length;
-  const nonShared=moves.filter(m=>!m||m.cat!=='共通システム');
-  const byName=new Map();
-  oldShared.forEach(m=>{const key=String(m.name||'');if(key&&!byName.has(key))byName.set(key,m);});
-  const ordered=[];
-  specs.forEach(spec=>{
-   const matches=oldShared.filter(m=>m&&(m.id===spec.id||m.name===spec.name));
-   const keep=matches[0]||{...spec,cat:'共通システム'};
-   keep.id=spec.id;keep.name=spec.name;keep.cat='共通システム';keep.cmd=keep.cmd||spec.cmd;
-   matches.slice(1).forEach(m=>{const ix=oldShared.indexOf(m);if(ix>=0)oldShared.splice(ix,1);});
-   ordered.push(keep);
-  });
-  const hasFeint=nonShared.some(m=>m&&/フェイント対応|フェイント可能/.test(m.note||''));
-  const hasBraking=nonShared.some(m=>m&&/ブレーキング対応|ブレーキング可能/.test(m.note||''));
-  const addOptional=(name,id,cmd,note)=>{
-   const matches=oldShared.filter(m=>m&&m.name===name);
-   if(matches.length){const keep=matches[0];keep.id=keep.id||c.id+'-shared-'+id;keep.name=name;keep.cat='共通システム';ordered.push(keep);}
-   else ordered.push({id:c.id+'-shared-'+id,name,cmd,cat:'共通システム',note});
-  };
-  if(hasFeint||oldShared.some(m=>m&&m.name==='フェイント'))addOptional('フェイント','feint','方向入力 + HK+REV','このキャラクターのフェイント対応技から使用。対応技は各技の備考を参照。');
-  if(hasBraking||oldShared.some(m=>m&&m.name==='ブレーキング'))addOptional('ブレーキング','braking','対応技のBR受付中に REV / LP+LK','このキャラクターのブレーキング対応技で使用。対応技と受付条件は各技の備考を参照。');
-  const known=new Set(ordered.map(m=>m.name));
-  oldShared.forEach(m=>{if(m&&!known.has(m.name)){ordered.push(m);known.add(m.name);}});
-  profile.moves=nonShared;
-  profile.moves.splice(Math.min(insertionIndex,profile.moves.length),0,...ordered);
+  // Add selectable Feint/Braking entries only when the character's move data documents support.
+  const hasFeint=moves.some(m=>m&&(/フェイント対応|フェイント可能/.test(m.note||''))) || moves.some(m=>m&&m.cat==='共通システム'&&m.name==='フェイント');
+  const hasBraking=moves.some(m=>m&&(/ブレーキング対応|ブレーキング可能/.test(m.note||''))) || moves.some(m=>m&&m.cat==='共通システム'&&m.name==='ブレーキング');
+  const ensureOption=(name,cmd,note)=>{const rows=moves.filter(m=>m&&m.cat==='共通システム'&&m.name===name);if(!rows.length)moves.push({id:c.id+'-shared-'+(name==='フェイント'?'feint':'braking'),name,cmd,cat:'共通システム',note});else for(const dup of rows.slice(1)){const ix=moves.indexOf(dup);if(ix>=0)moves.splice(ix,1);}};
+  if(hasFeint)ensureOption('フェイント','方向入力 + HK+REV','このキャラクターのフェイント対応技から使用。対応技は各技の備考を参照。');
+  if(hasBraking)ensureOption('ブレーキング','対応技のBR受付中に REV / LP+LK','このキャラクターのブレーキング対応技で使用。対応技と受付条件は各技の備考を参照。');
  }
-}
-normalizeCotwSharedRows();
+})();
 let route=[],activeFilter='すべて',builderFilter='すべて',toastTimer=null,editingComboId=null;
 const $=id=>document.getElementById(id);
 function escapeHTML(value){return String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]))}
