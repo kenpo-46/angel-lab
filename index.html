@@ -4240,9 +4240,21 @@ let activeData=data.profiles[activeProfileId]||data.profiles[PROFILE_ANGEL];
   const profile=data.profiles[character.id];
   if(!profile||!Array.isArray(profile.moves))continue;
   profile.moves=profile.moves.filter(move=>!isRedundantThrow(move));
-  const normals=[],others=[];
+  // Remove duplicate standing near/far normal rows that share the exact same command.
+  // Keep the first row (and its ID/name/note) so existing combo references remain valid.
+  const seenStandingCommands=new Set();
+  profile.moves=profile.moves.filter(move=>{
+   if(!move||move.cat!=='通常技')return true;
+   const command=String(move.cmd||'').trim().replace(/\s+/g,' ');
+   if(!/^(近距離|遠距離) 5(?:LP|LK|HP|HK)$/.test(command))return true;
+   if(seenStandingCommands.has(command))return false;
+   seenStandingCommands.add(command);
+   return true;
+  });
+  const normals=[],throws=[],others=[];
   profile.moves.forEach((move,index)=>{
    if(move&&move.cat==='通常技')normals.push({move,index});
+   else if(move&&move.cat==='通常投げ')throws.push({move,index});
    else others.push({move,index});
   });
   const normalKey=({move,index})=>{
@@ -4255,7 +4267,7 @@ let activeData=data.profiles[activeProfileId]||data.profiles[PROFILE_ANGEL];
   };
   normals.sort((a,b)=>{const x=normalKey(a),y=normalKey(b);for(let i=0;i<x.length;i++){if(x[i]!==y[i])return x[i]-y[i];}return 0;});
   // Move all normal attacks to the top; leave every other category in its original relative order.
-  profile.moves=[...normals.map(x=>x.move),...others.map(x=>x.move)];
+  profile.moves=[...normals.map(x=>x.move),...throws.map(x=>x.move),...others.map(x=>x.move)];
  }
 })();
 let route=[],activeFilter='すべて',builderFilter='すべて',toastTimer=null,editingComboId=null;
