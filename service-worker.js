@@ -1,4 +1,4 @@
-const CACHE_NAME = 'angel-lab-pwa-phase45-techniques-independent-steps-20261122';
+const CACHE_NAME = 'angel-lab-pwa-phase44-laocorn-followup-command-correction-20261121';
 const APP_SHELL = ['./','./index.html','./manifest.webmanifest','./icons/icon-192.png','./icons/icon-512.png','./icons/maskable-512.png','./icons/apple-touch-icon.png'];
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(APP_SHELL)).then(() => self.skipWaiting()));
