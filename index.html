@@ -474,7 +474,6 @@ const ROCK_INITIAL_MOVES=[
  {id:'rock-n-jlk',name:'ジャンプ弱キック',cmd:'j.LK',cat:'通常技'},
  {id:'rock-n-jhp',name:'ジャンプ強パンチ',cmd:'j.HP',cat:'通常技'},
  {id:'rock-n-jhk',name:'ジャンプ強キック',cmd:'j.HK',cat:'通常技'},
- {id:'rock-n-throw',name:'通常投げ',cmd:'近距離で投げ入力',cat:'通常技',note:'投げ抜け可能。方向と投げボタンの組み合わせは操作設定に準拠'},
  {id:'rock-dodge-high',name:'上段避け攻撃',cmd:'しゃがみ状態で 2+HP+REV',cat:'特殊技'},
  {id:'rock-dodge-low',name:'下段避け攻撃',cmd:'立ち状態で HP+REV',cat:'特殊技',note:'立ち状態で入力。地上判定のまま攻撃。攻撃判定発生前に真空投げでキャンセル可能'},
  {id:'rock-command-1',name:'コマンドコンボ①',cmd:'近距離 HK → 6+HK',cat:'特殊技'},
@@ -4240,6 +4239,10 @@ let activeData=data.profiles[activeProfileId]||data.profiles[PROFILE_ANGEL];
   const profile=data.profiles[character.id];
   if(!profile||!Array.isArray(profile.moves))continue;
   profile.moves=profile.moves.filter(move=>!isRedundantThrow(move));
+  // Rock Howard: remove the generic duplicate throw placeholder from the normal-attack list.
+  if(character.id==='cotw-rock'){
+   profile.moves=profile.moves.filter(move=>!(move && (move.id==='rock-n-throw' || (move.name==='通常投げ' && String(move.cmd||'').trim()==='近距離で投げ入力' && String(move.note||'').includes('投げ抜け可能')))));
+  }
   // Remove duplicate standing near/far normal rows that share the exact same command.
   // Keep the first row (and its ID/name/note) so existing combo references remain valid.
   const seenStandingCommands=new Set();
