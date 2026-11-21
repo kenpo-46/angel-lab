@@ -4225,6 +4225,39 @@ let activeData=data.profiles[activeProfileId]||data.profiles[PROFILE_ANGEL];
   if(hasBraking)ensureOption('ブレーキング','対応技のBR受付中に REV / LP+LK','このキャラクターのブレーキング対応技で使用。対応技と受付条件は各技の備考を参照。');
  }
 })();
+// CotW move-list ordering and cleanup: keep normal attacks first, pair near/far rows,
+// and remove only the redundant combined-direction throw helper described in Phase 38 feedback.
+(function normalizeCotwMoveListOrder(){
+ const buttonRank={'5LP':0,'5LK':1,'5HP':2,'5HK':3,'2LP':4,'2LK':5,'2HP':6,'2HK':7,'j.LP':8,'j.LK':9,'j.HP':10,'j.HK':11};
+ const isRedundantThrow=move=>{
+  if(!move)return false;
+  const cmd=String(move.cmd||'').replace(/\s+/g,'');
+  const note=String(move.note||'');
+  return cmd==='近距離で投げ入力' && note.includes('前後の方向入力で投げ方向が変化') &&
+   (move.name==='通常投げ（前方／後方）'||move.name==='通常投げ');
+ };
+ for(const character of CHARACTER_CATALOG.cotw){
+  const profile=data.profiles[character.id];
+  if(!profile||!Array.isArray(profile.moves))continue;
+  profile.moves=profile.moves.filter(move=>!isRedundantThrow(move));
+  const normals=[],others=[];
+  profile.moves.forEach((move,index)=>{
+   if(move&&move.cat==='通常技')normals.push({move,index});
+   else others.push({move,index});
+  });
+  const normalKey=({move,index})=>{
+   const cmd=String(move.cmd||'').trim();
+   const pair=cmd.match(/^(近距離|遠距離)\s*(5LP|5LK|5HP|5HK)$/);
+   if(pair)return [0,buttonRank[pair[2]],pair[1]==='近距離'?0:1,index];
+   const direct=cmd.match(/^(5LP|5LK|5HP|5HK|2LP|2LK|2HP|2HK|j\.LP|j\.LK|j\.HP|j\.HK)$/);
+   if(direct)return [0,buttonRank[direct[1]],0,index];
+   return [1,index,0,index];
+  };
+  normals.sort((a,b)=>{const x=normalKey(a),y=normalKey(b);for(let i=0;i<x.length;i++){if(x[i]!==y[i])return x[i]-y[i];}return 0;});
+  // Move all normal attacks to the top; leave every other category in its original relative order.
+  profile.moves=[...normals.map(x=>x.move),...others.map(x=>x.move)];
+ }
+})();
 let route=[],activeFilter='すべて',builderFilter='すべて',toastTimer=null,editingComboId=null;
 const $=id=>document.getElementById(id);
 function escapeHTML(value){return String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]))}
@@ -4274,12 +4307,12 @@ $('gameSelect').addEventListener('change',event=>{
 });
 $('characterSelect').addEventListener('change',event=>switchProfile(event.target.value));
 document.querySelectorAll('.tab').forEach(button=>button.addEventListener('click',()=>showPage(button.dataset.page)));
-function renderFilters(){const categories=['すべて',...new Set([...activeData.moves.map(move=>move.cat),'テクニック'])];if(!categories.includes(activeFilter))activeFilter='すべて';$('filters').innerHTML=categories.map(cat=>`<button class="chip ${activeFilter===cat?'active':''}" data-cat="${escapeHTML(cat)}" type="button">${escapeHTML(cat)}</button>`).join('');$('filters').querySelectorAll('[data-cat]').forEach(button=>button.addEventListener('click',()=>{activeFilter=button.dataset.cat;renderFilters();renderMoves()}))}
+function renderFilters(){const categories=['すべて',...(activeData.moves.some(move=>move.cat==='通常技')?['通常技']:[]),...new Set([...activeData.moves.map(move=>move.cat).filter(cat=>cat!=='通常技'),'テクニック'])];if(!categories.includes(activeFilter))activeFilter='すべて';$('filters').innerHTML=categories.map(cat=>`<button class="chip ${activeFilter===cat?'active':''}" data-cat="${escapeHTML(cat)}" type="button">${escapeHTML(cat)}</button>`).join('');$('filters').querySelectorAll('[data-cat]').forEach(button=>button.addEventListener('click',()=>{activeFilter=button.dataset.cat;renderFilters();renderMoves()}))}
 function moveRow(move,index){return `<div class="move"><div><div class="move-name">${escapeHTML(move.name)}</div><div class="move-sub">${escapeHTML(move.cat)}</div>${move.note?`<div class="move-note">${escapeHTML(move.note)}</div>`:''}</div><div class="cmd">${escapeHTML(move.cmd)}</div><button class="add" type="button" data-add="${index}" aria-label="${escapeHTML(move.name)}をコンボに追加">＋</button></div>`}
 const TECHNIQUE_OPTIONS=['空振り','フレーム消費','ディレイ'];
 function techniqueRows(){return `<section class="builder-group"><h3 class="builder-group-head">テクニック</h3>${TECHNIQUE_OPTIONS.map((name,i)=>`<div class="move"><div><div class="move-name">${name}</div><div class="move-sub">テクニック</div><div class="move-note">直前に追加した技へ付与します</div></div><div class="cmd">—</div><button class="add" type="button" data-tech="${i}" aria-label="${name}を直前の技に付与">＋</button></div>`).join('')}</section>`}
 function bindAddButtons(root){root.querySelectorAll('[data-add]').forEach(button=>button.addEventListener('click',()=>{const index=Number(button.dataset.add);if(!Number.isInteger(index)||!activeData.moves[index])return;route.push({...activeData.moves[index]});renderRoute();showPage('builder');showToast(`${activeData.moves[index].name} を追加しました`)}));root.querySelectorAll('[data-tech]').forEach(button=>button.addEventListener('click',()=>{if(!route.length){showToast('先に技を追加してください');return}const tag=TECHNIQUE_OPTIONS[Number(button.dataset.tech)];if(!tag)return;const last=route[route.length-1];last.techniques=Array.isArray(last.techniques)?last.techniques:[];if(!last.techniques.includes(tag))last.techniques.push(tag);renderRoute();showToast(`直前の技に「${tag}」を付けました`)}))}
-function renderBuilderFilters(){const categories=['すべて',...new Set([...activeData.moves.map(move=>move.cat),'テクニック'])];if(!categories.includes(builderFilter))builderFilter='すべて';$('builderFilters').innerHTML=categories.map(cat=>`<button class="chip ${builderFilter===cat?'active':''}" data-builder-cat="${escapeHTML(cat)}" type="button">${escapeHTML(cat)}</button>`).join('');$('builderFilters').querySelectorAll('[data-builder-cat]').forEach(button=>button.addEventListener('click',()=>{builderFilter=button.dataset.builderCat;renderBuilderFilters();renderBuilderMoves()}))}
+function renderBuilderFilters(){const categories=['すべて',...(activeData.moves.some(move=>move.cat==='通常技')?['通常技']:[]),...new Set([...activeData.moves.map(move=>move.cat).filter(cat=>cat!=='通常技'),'テクニック'])];if(!categories.includes(builderFilter))builderFilter='すべて';$('builderFilters').innerHTML=categories.map(cat=>`<button class="chip ${builderFilter===cat?'active':''}" data-builder-cat="${escapeHTML(cat)}" type="button">${escapeHTML(cat)}</button>`).join('');$('builderFilters').querySelectorAll('[data-builder-cat]').forEach(button=>button.addEventListener('click',()=>{builderFilter=button.dataset.builderCat;renderBuilderFilters();renderBuilderMoves()}))}
 function renderBuilderMoves(){const query=$('builderSearch').value.trim().toLocaleLowerCase();const matches=activeData.moves.map((move,index)=>({move,index})).filter(item=>(builderFilter==='すべて'||item.move.cat===builderFilter)&&`${item.move.name} ${item.move.cmd} ${item.move.cat} ${item.move.note||''}`.toLocaleLowerCase().includes(query));const groups=new Map();matches.forEach(item=>{if(!groups.has(item.move.cat))groups.set(item.move.cat,[]);groups.get(item.move.cat).push(item)});let markup=[...groups.entries()].map(([cat,items])=>`<section class="builder-group"><h3 class="builder-group-head">${escapeHTML(cat)}</h3>${items.map(item=>moveRow(item.move,item.index)).join('')}</section>`).join('');if((builderFilter==='すべて'||builderFilter==='テクニック')&&TECHNIQUE_OPTIONS.some(name=>name.toLocaleLowerCase().includes(query)))markup+=techniqueRows();$('builderMoves').innerHTML=markup||(activeData.moves.length?'<div class="empty">該当する技がありません</div>':'<div class="empty">このキャラクターの技データは準備中です。</div>');bindAddButtons($('builderMoves'))}
 function renderMoves(){const query=$('search').value.trim().toLocaleLowerCase();const matches=activeData.moves.map((move,index)=>({move,index})).filter(item=>(activeFilter==='すべて'||item.move.cat===activeFilter)&&`${item.move.name} ${item.move.cmd} ${item.move.cat} ${item.move.note||''}`.toLocaleLowerCase().includes(query));let markup=matches.map(item=>moveRow(item.move,item.index)).join('');if((activeFilter==='すべて'||activeFilter==='テクニック')&&TECHNIQUE_OPTIONS.some(name=>name.toLocaleLowerCase().includes(query)))markup+=techniqueRows();$('moveList').innerHTML=markup||(activeData.moves.length?'<div class="empty">該当する技がありません</div>':'<div class="empty">このキャラクターの技データは準備中です。登録後にここへ技表が表示されます。</div>');bindAddButtons($('moveList'));renderBuilderMoves()}
 function recipeCommand(command){return String(command||'').replace(/^(?:サークル技\s*[／/]\s*特殊サークル技中|特殊サークル技中|サークル技中|始動技中)\s*/,'').trim()}
