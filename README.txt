@@ -272,10 +272,18 @@ Phase 34 — Laocorn (2026-11-20)
 - Research: https://w.atwiki.jp/cotw/pages/89.html and SNK official Ver.3.4.1 patch notes: https://www.snk-corp.co.jp/official/fatalfury-cotw/patchnotes/v3.4.1/
 
 
-Phase 35 - CotW Combination Attack Coverage (2026-11-20)
+Phase 36 - CotW Combination Attack Coverage (2026-11-20)
 - Ensured selectable Combination Attack routes exist in every ready CotW character profile (20 profiles were missing them; 14 already had them).
 - Four routes are available: standard (LP > HP > HP > HK), mid (LP > HP > HP > 6+HK), low (LP > HP > HP > 2+HK), and REV (LP > HP > HP > HK > HP+HK).
 - Existing Hokutomaru routes are detected and retained without duplication.
 - Migration is additive: it appends only missing routes and does not overwrite existing move entries, saved combos, notes, or backup data.
 - The migration runs for existing profiles and newly initialized ready profiles.
 - The full command audit is supplied separately and is not included in this deployment ZIP.
+
+
+Phase 36（2026-11-21）:
+- 共通システムのステップ／ダッシュ重複を統合。
+- キャラクターの技備考にフェイント／ブレーキング対応が記録されている場合、共通システム欄の選択肢を補完。
+- 共通システムのジャンプ・投げ項目の重複を統合。
+- 最後に選択したキャラクターとメインタブを次回起動時に復元。
+- 既存の保存コンボ、概要メモ、技データを保持する移行処理。
