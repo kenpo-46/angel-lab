@@ -4368,7 +4368,22 @@ function renderBuilderMoves(){const query=$('builderSearch').value.trim().toLoca
 function renderMoves(){const query=$('search').value.trim().toLocaleLowerCase();const matches=activeData.moves.map((move,index)=>({move,index})).filter(item=>(activeFilter==='すべて'||item.move.cat===activeFilter)&&`${item.move.name} ${item.move.cmd} ${item.move.cat} ${item.move.note||''}`.toLocaleLowerCase().includes(query));let markup=matches.map(item=>moveRow(item.move,item.index)).join('');if((activeFilter==='すべて'||activeFilter==='テクニック')&&TECHNIQUE_OPTIONS.some(name=>name.toLocaleLowerCase().includes(query)))markup+=techniqueRows();$('moveList').innerHTML=markup||(activeData.moves.length?'<div class="empty">該当する技がありません</div>':'<div class="empty">このキャラクターの技データは準備中です。登録後にここへ技表が表示されます。</div>');bindAddButtons($('moveList'));renderBuilderMoves()}
 function recipeCommand(command){return String(command||'').replace(/^(?:サークル技\s*[／/]\s*特殊サークル技中|特殊サークル技中|サークル技中|始動技中)\s*/,'').trim()}
 function expandTechniqueSteps(steps){const expanded=[];(Array.isArray(steps)?steps:[]).forEach(move=>{if(!move||typeof move!=='object')return;const clean={...move};const tags=Array.isArray(clean.techniques)?clean.techniques:[];delete clean.techniques;expanded.push(clean);tags.forEach(tag=>{const index=TECHNIQUE_OPTIONS.indexOf(tag);if(index>=0)expanded.push({id:`technique-${index}`,name:tag,cmd:'',cat:'テクニック',isTechnique:true})})});return expanded}
-function recipeText(steps){return expandTechniqueSteps(steps).map(move=>{if(move.isTechnique||move.cat==='テクニック')return String(move.name||'テクニック');return move.cat==='共通システム'?String(move.name||'共通システム'):recipeCommand(move.cmd)}).filter(Boolean).join(' → ')}
+function recipeText(steps){
+ const parts=[];
+ expandTechniqueSteps(steps).forEach(move=>{
+  if(!move)return;
+  if(move.isTechnique||move.cat==='テクニック'){
+   const tag=String(move.name||'テクニック').trim();
+   if(!tag)return;
+   if(parts.length&&parts[parts.length-1].kind==='move')parts[parts.length-1].tags.push(tag);
+   else parts.push({kind:'technique',text:tag,tags:[]});
+   return;
+  }
+  const text=move.cat==='共通システム'?String(move.name||'共通システム'):recipeCommand(move.cmd);
+  if(text)parts.push({kind:'move',text,tags:[]});
+ });
+ return parts.map(part=>part.kind==='move'?part.text+(part.tags.length?`（${part.tags.join('・')}）`:''):part.text).join(' → ');
+}
 function routeText(){return recipeText(route)}
 function renderRoute(){
  $('routeCount').textContent=`${route.length}パーツ`;
