@@ -2582,7 +2582,9 @@ const LEGACY_BUILTIN_NAMES=new Set([
 ]);
 function canonicalName(name){return NAME_ALIASES[String(name||'')]||String(name||'')}
 function freshData(){return {moves:initialMoves.map(m=>({...m})),combos:[]}}
-const TECHNIQUE_OPTIONS=['空振り','フレーム消費','ディレイ'];
+// 全ゲーム共通のテクニック一覧。新しいゲーム／キャラクターにも自動的に表示する。
+// 既存の保存データとの互換性を保つため、既存項目の順番は変更せず末尾に追加する。
+const TECHNIQUE_OPTIONS=['空振り','フレーム消費','ディレイ','微歩き'];
 function loadData(){
  let raw=null;
  try{
