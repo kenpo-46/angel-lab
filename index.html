@@ -4431,7 +4431,8 @@ function recipeText(steps){
    else parts.push({kind:'technique',text:tag,tags:[]});
    return;
   }
-  const text=move.cat==='共通システム'?String(move.name||'共通システム'):recipeCommand(move.cmd);
+  const routeLabelById={'aki-drive-rush':'DR','aki-cancel-rush':'DRC'};
+  const text=routeLabelById[move.id]||(move.cat==='共通システム'?String(move.name||'共通システム'):recipeCommand(move.cmd));
   if(text)parts.push({kind:'move',text,tags:[]});
  });
  return parts.map(part=>part.kind==='move'?part.text+(part.tags.length?`（${part.tags.join('・')}）`:''):part.text).join(' → ');
