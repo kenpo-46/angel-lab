@@ -4431,7 +4431,7 @@ function recipeText(steps){
    else parts.push({kind:'technique',text:tag,tags:[]});
    return;
   }
-  const routeLabelById={'aki-drive-rush':'DR','aki-cancel-rush':'DRC'};
+  const routeLabelById={'aki-drive-rush':'DR','aki-cancel-rush':'CDR'};
   const text=routeLabelById[move.id]||(move.cat==='共通システム'?String(move.name||'共通システム'):recipeCommand(move.cmd));
   if(text)parts.push({kind:'move',text,tags:[]});
  });
